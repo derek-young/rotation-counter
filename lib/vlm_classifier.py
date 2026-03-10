@@ -1,0 +1,254 @@
+"""
+VLM classifier: sends contact sheet grids to an LLM/VLM API and parses
+per-cell orientation responses.
+
+Supports OpenAI (primary) and Google Gemini (fallback).
+All API calls are async with a semaphore-controlled concurrency limit.
+"""
+
+from __future__ import annotations
+import asyncio
+import json
+import re
+import time
+from openai import AsyncOpenAI
+from typing import Any
+
+import httpx
+
+from config import (
+    OPENAI_API_KEY,
+    PRIMARY_MODEL,
+    FALLBACK_MODEL,
+    VALID_ORIENTATIONS,
+    VLM_TEMPERATURE,
+    VLM_SEED,
+    VLM_TIMEOUT,
+    VLM_MAX_RETRIES,
+    VLM_MAX_CONCURRENT,
+)
+from lib.contact_sheet import ContactSheet
+
+async_client = AsyncOpenAI()
+
+
+SYSTEM_PROMPT = """You are a body orientation classifier analyzing a numbered image grid.
+
+For each numbered cell in the grid, classify the human subject's orientation into EXACTLY ONE of these categories:
+- FRONT: Subject facing camera
+- RIGHT_SIDE: Subject's right side closest to camera
+- BACK: Subject facing away from camera, back of head and shoulders visible
+- LEFT_SIDE: Subject's left side closest to camera
+- UNKNOWN: No human visible, cell is blank, or orientation cannot be determined
+
+Classification rules:
+1. Combine shoulder, hip, arm and head/face planes to get the strongest cue
+2. For diagonal orientations (45° between two cardinals), choose the nearest cardinal direction
+3. If only partial body is visible, classify based on the visible portion
+4. Symmetrical clothing does not affect classification; focus on body geometry
+
+Respond with ONLY a valid JSON object mapping cell number (as string) to orientation.
+Example: {"1": "FRONT", "2": "RIGHT_SIDE", "3": "BACK", "4": "LEFT_SIDE"}
+No other text, no markdown, no explanation."""
+
+
+async def classify_sheets(
+    sheets: list[ContactSheet],
+) -> dict[int, str]:
+    """
+    Classify all contact sheets asynchronously and return a flat
+    mapping of frame_index → orientation.
+
+    Args:
+        sheets: Contact sheets from compose_contact_sheets().
+
+    Returns:
+        Dict mapping each frame's VideoFrame.index to its orientation string.
+    """
+    semaphore = asyncio.Semaphore(VLM_MAX_CONCURRENT)
+    results: dict[int, str] = {}
+
+    async def process_sheet(sheet: ContactSheet) -> None:
+        async with semaphore:
+            cell_orientations = await _classify_sheet_with_retry(sheet)
+        # Map cell numbers back to frame indices
+        for cell_num_str, orientation in cell_orientations.items():
+            cell_num = int(cell_num_str)
+            if 1 <= cell_num <= sheet.cell_count:
+                frame_idx = sheet.frame_indices[cell_num - 1]
+                results[frame_idx] = orientation
+
+    await asyncio.gather(*[process_sheet(s) for s in sheets])
+    return results
+
+
+async def _classify_sheet_with_retry(sheet: ContactSheet) -> dict[str, str]:
+    """Classify a single contact sheet, retrying on failure."""
+    last_error: Exception | None = None
+
+    for attempt in range(VLM_MAX_RETRIES):
+        try:
+            result = await _call_openai(sheet)
+            parsed = _parse_and_validate(result, sheet.cell_count)
+            print(
+                f"[vlm] sheet {sheet.sheet_index} classified "
+                f"({sheet.cell_count} cells, attempt {attempt + 1})"
+            )
+            return parsed
+        except Exception as e:
+            last_error = e
+            wait = 2 ** attempt
+            print(f"[vlm] sheet {sheet.sheet_index} attempt {attempt + 1} failed: {e}. Retrying in {wait}s...")
+            await asyncio.sleep(wait)
+
+async def _call_openai(sheet: ContactSheet) -> str:
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY not set")
+    
+    completion = await async_client.chat.completions.create(
+        model="gpt-5.4",
+        messages=[
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{sheet.image_b64}",
+                            "detail": "high",
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            f"Classify the human's body orientation in each of the "
+                            f"{sheet.cell_count} numbered cells. "
+                            f"Return JSON with keys '1' through '{sheet.cell_count}'."
+                        ),
+                    },
+                ],
+            },
+        ],
+        response_format={"type": "json_object"},
+        seed=VLM_SEED,
+        temperature=VLM_TEMPERATURE,
+    )
+
+    return completion.choices[0].message.content
+
+
+
+async def _call_openai_api(sheet: ContactSheet) -> str:
+    """Call OpenAI vision API with the contact sheet image."""
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY not set")
+
+    payload = {
+        "model": PRIMARY_MODEL,
+        "temperature": VLM_TEMPERATURE,
+        "seed": VLM_SEED,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{sheet.image_b64}",
+                            "detail": "high",
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            f"Classify the human's body orientation in each of the "
+                            f"{sheet.cell_count} numbered cells. "
+                            f"Return JSON with keys '1' through '{sheet.cell_count}'."
+                        ),
+                    },
+                ],
+            },
+        ],
+    }
+
+    async with httpx.AsyncClient(timeout=VLM_TIMEOUT) as client:
+        resp = await client.post(
+            "https://api.openai.com/v1/chat/completions",
+            json=payload,
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+
+async def _call_gemini(sheet: ContactSheet) -> str:
+    """Call Google Gemini API with the contact sheet image."""
+    if not GOOGLE_API_KEY:
+        raise ValueError("GOOGLE_API_KEY not set")
+
+    import google.generativeai as genai
+
+    genai.configure(api_key=GOOGLE_API_KEY)
+    model = genai.GenerativeModel(FALLBACK_MODEL)
+
+    import base64
+    from PIL import Image
+    import io
+
+    img_bytes = base64.b64decode(sheet.image_b64)
+    pil_img = Image.open(io.BytesIO(img_bytes))
+
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
+        f"Classify the human's body orientation in each of the "
+        f"{sheet.cell_count} numbered cells. "
+        f"Return JSON with keys '1' through '{sheet.cell_count}'."
+    )
+
+    response = await asyncio.to_thread(
+        model.generate_content,
+        [prompt, pil_img],
+        generation_config={"temperature": VLM_TEMPERATURE, "response_mime_type": "application/json"},
+    )
+    return response.text
+
+
+def _parse_and_validate(raw: str, expected_cells: int) -> dict[str, str]:
+    """
+    Parse VLM JSON response and validate orientation values.
+    Falls back to regex extraction if JSON is embedded in prose.
+    """
+    # Try direct JSON parse
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Extract JSON object from prose
+        match = re.search(r"\{[^{}]+\}", raw, re.DOTALL)
+        if not match:
+            raise ValueError(f"No JSON found in response: {raw[:200]}")
+        data = json.loads(match.group())
+
+    # Validate and clean values
+    cleaned: dict[str, str] = {}
+    for i in range(1, expected_cells + 1):
+        key = str(i)
+        raw_val = data.get(key, "UNKNOWN").strip().upper()
+        # Normalize common variants
+        raw_val = raw_val.replace(" ", "_")
+        if raw_val not in VALID_ORIENTATIONS:
+            # Try partial match
+            matched = next((v for v in VALID_ORIENTATIONS if v in raw_val), "UNKNOWN")
+            raw_val = matched
+        cleaned[key] = raw_val
+
+    return cleaned
