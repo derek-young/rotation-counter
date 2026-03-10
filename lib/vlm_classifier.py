@@ -11,12 +11,13 @@ import asyncio
 import json
 import re
 import time
-from openai import AsyncOpenAI
-from typing import Any
+from openai import AsyncOpenAI, APIStatusError
+from typing import Any, TypedDict
 
 import httpx
 
 from config import (
+    GOOGLE_API_KEY,
     OPENAI_API_KEY,
     PRIMARY_MODEL,
     FALLBACK_MODEL,
@@ -30,6 +31,12 @@ from config import (
 from lib.contact_sheet import ContactSheet
 
 async_client = AsyncOpenAI()
+
+
+class ModelCallResult(TypedDict):
+    content: str
+    model: str
+    tokens: int
 
 SYSTEM_PROMPT = """
 You are an expert in human pose estimation and spatial orientation. 
@@ -91,7 +98,7 @@ No other text, no markdown, no explanation."""
 
 async def classify_sheets(
     sheets: list[ContactSheet],
-) -> dict[int, str]:
+) -> tuple[dict[int, str], str, int]:
     """
     Classify all contact sheets asynchronously and return a flat
     mapping of frame_index → orientation.
@@ -100,14 +107,20 @@ async def classify_sheets(
         sheets: list of ContactSheets
 
     Returns:
-        Dict mapping each frame's VideoFrame.index to its orientation string.
+        Tuple of (frame_orientations, model, total_tokens) where frame_orientations
+        maps each frame's VideoFrame.index to its orientation string.
     """
     semaphore = asyncio.Semaphore(VLM_MAX_CONCURRENT)
     results: dict[int, str] = {}
+    model_used: str = ""
+    total_tokens: int = 0
 
     async def process_sheet(sheet: ContactSheet) -> None:
+        nonlocal model_used, total_tokens
         async with semaphore:
-            cell_orientations = await _classify_sheet_with_retry(sheet)
+            cell_orientations, sheet_model, sheet_tokens = await _classify_sheet_with_retry(sheet)
+        model_used = sheet_model
+        total_tokens += sheet_tokens
         # Map cell numbers back to frame indices
         for cell_num_str, orientation in cell_orientations.items():
             cell_num = int(cell_num_str)
@@ -116,29 +129,39 @@ async def classify_sheets(
                 results[frame_idx] = orientation
 
     await asyncio.gather(*[process_sheet(s) for s in sheets])
-    return results
+
+    return results, model_used, total_tokens
 
 
-async def _classify_sheet_with_retry(sheet: ContactSheet) -> dict[str, str]:
+async def _classify_sheet_with_retry(sheet: ContactSheet) -> tuple[dict[str, str], str, int]:
     """Classify a single contact sheet, retrying on failure."""
-    last_error: Exception | None = None
 
     for attempt in range(VLM_MAX_RETRIES):
         try:
             result = await _call_openai(sheet)
-            parsed = _parse_and_validate(result, sheet.cell_count)
+            parsed = _parse_and_validate(result["content"], sheet.cell_count)
             print(
                 f"[vlm] sheet {sheet.sheet_index} classified "
                 f"({sheet.cell_count} cells, attempt {attempt + 1})"
             )
-            return parsed
+            return parsed, result["model"], result["tokens"]
+        except ValueError:
+            # Config/programming errors (e.g. missing API key) won't resolve on retry
+            raise
+        except APIStatusError as e:
+            # Retry on 429 (rate limit) and 5xx (transient server errors);
+            # re-raise on other 4xx (bad request, auth, not found, etc.)
+            if 400 <= e.status_code < 500 and e.status_code != 429:
+                raise
+            wait = 2 ** attempt
+            print(f"[vlm] sheet {sheet.sheet_index} attempt {attempt + 1} failed: {e}. Retrying in {wait}s...")
+            await asyncio.sleep(wait)
         except Exception as e:
-            last_error = e
             wait = 2 ** attempt
             print(f"[vlm] sheet {sheet.sheet_index} attempt {attempt + 1} failed: {e}. Retrying in {wait}s...")
             await asyncio.sleep(wait)
 
-async def _call_openai(sheet: ContactSheet) -> str:
+async def _call_openai(sheet: ContactSheet) -> ModelCallResult:
     if not OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY not set")
     
@@ -175,60 +198,11 @@ async def _call_openai(sheet: ContactSheet) -> str:
         temperature=VLM_TEMPERATURE,
     )
 
-    print("### COMPLETION ###")
-    print(completion)
-
-    return completion.choices[0].message.content
-
-
-
-async def _call_openai_api(sheet: ContactSheet) -> str:
-    """Call OpenAI vision API with the contact sheet image."""
-    if not OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY not set")
-
-    payload = {
-        "model": PRIMARY_MODEL,
-        "temperature": VLM_TEMPERATURE,
-        "seed": VLM_SEED,
-        "response_format": {"type": "json_object"},
-        "messages": [
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{sheet.image_b64}",
-                            "detail": "high",
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": (
-                            f"Classify the human's body orientation in each of the "
-                            f"{sheet.cell_count} numbered cells. "
-                            f"Return JSON with keys '1' through '{sheet.cell_count}'."
-                        ),
-                    },
-                ],
-            },
-        ],
+    return { 
+        "content": completion.choices[0].message.content,
+        "model": completion.model,
+        "tokens": completion.usage.total_tokens,
     }
-
-    async with httpx.AsyncClient(timeout=VLM_TIMEOUT) as client:
-        resp = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            json=payload,
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
 
 
 async def _call_gemini(sheet: ContactSheet) -> str:

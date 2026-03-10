@@ -18,19 +18,17 @@ The pipeline:
 
 from __future__ import annotations
 import asyncio
-import json
-import os
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
-from config import LOG_DIR, PRIMARY_MODEL, SAVE_LOGS, DUMP_SHEETS, DUMP_SHEETS_DIR
+from config import SAVE_LOGS, DUMP_SHEETS, DUMP_SHEETS_DIR
 from lib.frame_extractor import extract_frames
 from lib.contact_sheet import compose_contact_sheets, dump_labeled_sheets
 from lib.vlm_classifier import classify_sheets
 from lib.rotation_algorithm import count_front_back_rotations
 from lib.validator import validate_result, print_validation_report
+from lib.save_log import save_log
 
 
 async def run_pipeline(video_path: str) -> int:
@@ -51,7 +49,7 @@ async def run_pipeline(video_path: str) -> int:
     sheets = compose_contact_sheets(frames)
 
     # Step 3: Async VLM classification
-    frame_orientations = await classify_sheets(sheets)
+    frame_orientations, model_used, total_tokens = await classify_sheets(sheets)
 
     # Optional: dump sheets with orientation labels to disk for inspection
     if DUMP_SHEETS:
@@ -70,44 +68,19 @@ async def run_pipeline(video_path: str) -> int:
     t_total = time.perf_counter()
     print(f"[pipeline] total time: {t_total - t0:.1f}s")
 
-    # Save log
     if SAVE_LOGS:
-        _save_log(video_path, frame_orientations, result, final_count, issues, t_total - t0)
+        save_log(
+            elapsed=t_total - t0,
+            final_count=final_count,
+            issues=issues,
+            model=model_used,
+            orientations=frame_orientations,
+            result=result,
+            total_tokens=total_tokens,
+            video_path=video_path,
+        )
 
     return final_count
-
-
-def _save_log(
-    video_path: str,
-    orientations: dict[int, str],
-    result,
-    final_count: int,
-    issues: list[str],
-    elapsed: float,
-) -> None:
-    """Save a JSON log of this run for audit/debugging."""
-    os.makedirs(LOG_DIR, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = Path(LOG_DIR) / f"run_{ts}.json"
-
-    log_data = {
-        "model": PRIMARY_MODEL,
-        "timestamp": ts,
-        "video": video_path,
-        "final_count": final_count,
-        "direction": result.direction,
-        "cumulative_angle": result.cumulative_angle,
-        "confidence": result.confidence,
-        "elapsed_seconds": round(elapsed, 2),
-        "warnings": issues,
-        "frame_orientations": {str(k): v for k, v in sorted(orientations.items())},
-        "sequence": result.sequence,
-    }
-
-    with open(log_path, "w") as f:
-        json.dump(log_data, f, indent=2)
-
-    print(f"[pipeline] log saved → {log_path}")
 
 
 def main() -> None:
