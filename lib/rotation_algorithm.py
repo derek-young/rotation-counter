@@ -3,19 +3,17 @@ Rotation counting algorithm.
 
 Converts a sequence of discrete orientation labels (FRONT/RIGHT_SIDE/BACK/LEFT_SIDE)
 into a count of complete 360° rotations using:
-  1. Smoothing (majority-vote sliding window)
-  2. Direction detection (CW vs CCW)
-  3. Angle unwrapping (monotonic cumulative angle)
-  4. Cycle counting (integer multiples of 360°)
+  1. Direction detection (CW vs CCW)
+  2. Angle unwrapping (monotonic cumulative angle)
+  3. Cycle counting (integer multiples of 360°)
 
 This stage is fully deterministic — all LLM non-determinism is absorbed here.
 """
 
 from __future__ import annotations
-from collections import Counter
 from dataclasses import dataclass, field
 
-from config import SMOOTHING_WINDOW, MIN_DIRECTION_CONSISTENCY
+from config import MIN_DIRECTION_CONSISTENCY
 
 
 ORIENT_TO_ANGLE: dict[str, int] = {
@@ -33,12 +31,12 @@ class RotationResult:
     count: int
     direction: str          # "CW", "CCW", or "UNKNOWN"
     confidence: float       # 0.0–1.0
-    smoothed_sequence: list[str] = field(default_factory=list)
+    sequence: list[str] = field(default_factory=list)
     cumulative_angle: float = 0.0
     warnings: list[str] = field(default_factory=list)
 
 
-def count_rotations(
+def count_angular_rotations(
     frame_orientations: dict[int, str],
 ) -> RotationResult:
     """
@@ -50,7 +48,6 @@ def count_rotations(
     Returns:
         RotationResult with count and diagnostic info.
     """
-    # Build ordered sequence, skipping UNKNOWN gaps
     ordered = [
         frame_orientations[k]
         for k in sorted(frame_orientations.keys())
@@ -58,21 +55,17 @@ def count_rotations(
 
     warnings: list[str] = []
 
-    # Replace UNKNOWN by interpolating from neighbors
     filled = _fill_unknown(ordered)
 
-    # Smooth to reduce VLM misclassifications
-    smoothed = _majority_vote_smooth(filled, window=SMOOTHING_WINDOW)
-
     # Convert to angles
-    angles = [ORIENT_TO_ANGLE.get(o, -1) for o in smoothed]
+    angles = [ORIENT_TO_ANGLE.get(o, -1) for o in filled]
     angles = [a for a in angles if a >= 0]  # drop any remaining UNKNOWN
 
     if len(angles) < 4:
         warnings.append("Too few valid frames to detect rotations")
         return RotationResult(
             count=0, direction="UNKNOWN", confidence=0.0,
-            smoothed_sequence=smoothed, warnings=warnings
+            sequence=filled, warnings=warnings
         )
 
     # Detect direction
@@ -91,7 +84,7 @@ def count_rotations(
     count = int(total_angle / 360)
 
     # Confidence: based on direction consistency + unique orientations seen
-    unique = set(smoothed) - {"UNKNOWN"}
+    unique = set(filled) - {"UNKNOWN"}
     orient_coverage = len(unique) / 4.0  # how many of 4 cardinal directions we saw
     confidence = (dir_confidence + orient_coverage) / 2.0
 
@@ -104,8 +97,61 @@ def count_rotations(
         count=count,
         direction=direction,
         confidence=round(confidence, 3),
-        smoothed_sequence=smoothed,
+        sequence=filled,
         cumulative_angle=round(total_angle, 1),
+        warnings=warnings,
+    )
+
+
+def count_front_back_rotations(
+    frame_orientations: dict[int, str],
+) -> RotationResult:
+    """
+    Count complete rotations using BACK → FRONT
+
+    Args:
+        frame_orientations: {frame_idx: orientation_str} — may contain UNKNOWN.
+
+    Returns:
+        RotationResult with count and diagnostic info.
+    """
+    ordered = [
+        frame_orientations[k]
+        for k in sorted(frame_orientations.keys())
+    ]
+
+    warnings: list[str] = []
+
+    filled = _fill_unknown(ordered)
+
+    count = 0
+    state = "IDLE"  # IDLE | SAW_BACK
+
+    for orientation in filled:
+        if orientation == "UNKNOWN":
+            continue
+
+        if state == "IDLE":
+            if orientation == "BACK":
+                state = "SAW_BACK"
+        elif state == "SAW_BACK":
+            if orientation == "FRONT":
+                count += 1
+                state = "IDLE"
+
+    unique = set(filled) - {"UNKNOWN"}
+    orient_coverage = len(unique) / 4.0
+
+    if len(unique) < 3:
+        warnings.append(
+            f"Only {len(unique)} unique orientations seen — possible undercounting"
+        )
+
+    return RotationResult(
+        count=count,
+        direction="UNKNOWN",
+        confidence=round(orient_coverage, 3),
+        sequence=filled,
         warnings=warnings,
     )
 
@@ -129,32 +175,6 @@ def _fill_unknown(sequence: list[str]) -> list[str]:
             result[i] = left or right or "UNKNOWN"
 
     return result
-
-
-def _majority_vote_smooth(sequence: list[str], window: int) -> list[str]:
-    """
-    Smooth orientation sequence with a sliding majority-vote window.
-    Absorbs single-frame VLM misclassifications.
-    """
-    n = len(sequence)
-    smoothed = []
-    half = window // 2
-
-    for i in range(n):
-        start = max(0, i - half)
-        end = min(n, i + half + 1)
-        window_vals = [sequence[j] for j in range(start, end) if sequence[j] != "UNKNOWN"]
-        if not window_vals:
-            smoothed.append("UNKNOWN")
-        else:
-            counts = Counter(window_vals)
-            winner, max_count = counts.most_common(1)[0]
-            # On a tie, prefer the current frame's value to avoid smoothing away valid transitions
-            if sequence[i] != "UNKNOWN" and counts.get(sequence[i], 0) == max_count:
-                winner = sequence[i]
-            smoothed.append(winner)
-
-    return smoothed
 
 
 def _detect_direction(angles: list[int]) -> tuple[str, float]:

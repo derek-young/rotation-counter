@@ -29,7 +29,7 @@ from config import LOG_DIR, PRIMARY_MODEL, SAVE_LOGS, DUMP_SHEETS, DUMP_SHEETS_D
 from lib.frame_extractor import extract_frames
 from lib.contact_sheet import compose_contact_sheets, dump_labeled_sheets
 from lib.vlm_classifier import classify_sheets
-from lib.rotation_algorithm import count_rotations
+from lib.rotation_algorithm import count_front_back_rotations
 from lib.validator import validate_result, print_validation_report
 
 
@@ -61,7 +61,7 @@ async def run_pipeline(video_path: str) -> int:
     print(f"[pipeline] classification done in {t_classify - t0:.1f}s")
 
     # Step 4 + 5: Smooth + count
-    result = count_rotations(frame_orientations)
+    result = count_front_back_rotations(frame_orientations)
 
     # Step 6: Validate
     final_count, issues = validate_result(result)
@@ -101,7 +101,7 @@ def _save_log(
         "elapsed_seconds": round(elapsed, 2),
         "warnings": issues,
         "frame_orientations": {str(k): v for k, v in sorted(orientations.items())},
-        "smoothed_sequence": result.smoothed_sequence,
+        "sequence": result.sequence,
     }
 
     with open(log_path, "w") as f:

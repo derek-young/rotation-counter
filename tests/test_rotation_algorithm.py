@@ -3,21 +3,22 @@ Unit tests for the rotation counting algorithm.
 Run with: python3 -m pytest tests/ -v
 """
 
-import sys
-import os
+import glob
 import json
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+import os
+import pytest
+import sys
 
 from lib.rotation_algorithm import (
-    count_rotations,
-    _majority_vote_smooth,
+    count_angular_rotations as count_rotations,
+    count_front_back_rotations,
     _detect_direction,
-    _unwrap_angles,
     _fill_unknown,
 )
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_LOGS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+_LOG_FILES = sorted(glob.glob(os.path.join(_LOGS_DIR, "*.json")))
 
 def make_seq(labels: list[str]) -> dict[int, str]:
     """Convert a list of labels into a frame_index → orientation dict."""
@@ -94,24 +95,6 @@ def test_repeated_states_count_correctly():
 
 
 # ---------------------------------------------------------------------------
-# Smoothing tests
-# ---------------------------------------------------------------------------
-
-def test_majority_vote_smooth_basic():
-    seq = ["FRONT", "RIGHT_SIDE", "FRONT", "FRONT", "BACK"]
-    # The RIGHT_SIDE at index 1 should smooth to FRONT (majority in window)
-    smoothed = _majority_vote_smooth(seq, window=3)
-    assert smoothed[1] == "FRONT", f"Expected FRONT after smoothing, got {smoothed[1]}"
-
-
-def test_majority_vote_handles_unknown():
-    seq = ["FRONT", "UNKNOWN", "FRONT", "RIGHT_SIDE", "RIGHT_SIDE"]
-    smoothed = _majority_vote_smooth(seq, window=3)
-    # UNKNOWN at index 1 should be ignored in voting; FRONT majority around it
-    assert smoothed[1] in {"FRONT", "RIGHT_SIDE"}, f"Unexpected value: {smoothed[1]}"
-
-
-# ---------------------------------------------------------------------------
 # Direction detection tests
 # ---------------------------------------------------------------------------
 
@@ -166,3 +149,18 @@ def test_llm_generated_orientation_2():
     sequence = {int(k): v for k, v in data["frame_orientations"].items()}
     result = count_rotations(sequence)
     assert result.count == expected_count, f"Expected {expected_count}, got {result.count}"
+
+
+# ---------------------------------------------------------------------------
+# count_front_back_rotations: all log files
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("log_path", _LOG_FILES, ids=[os.path.basename(p) for p in _LOG_FILES])
+def test_front_back_rotations_all_logs(log_path):
+    with open(log_path) as f:
+        data = json.load(f)
+    sequence = {int(k): v for k, v in data["frame_orientations"].items()}
+    result = count_front_back_rotations(sequence)
+    assert result.count == 5, (
+        f"{os.path.basename(log_path)}: expected 5, got {result.count}"
+    )

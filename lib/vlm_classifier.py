@@ -31,8 +31,45 @@ from lib.contact_sheet import ContactSheet
 
 async_client = AsyncOpenAI()
 
+SYSTEM_PROMPT = """
+You are an expert in human pose estimation and spatial orientation. 
 
-SYSTEM_PROMPT = """You are a body orientation classifier analyzing a numbered image grid.
+Your task is to analyze a numbered image grid and determine the precise direction a person is facing in each quadrant.
+
+For each numbered cell in the grid, classify the human subject's orientation into EXACTLY ONE of these categories:
+- FRONT
+- RIGHT_SIDE
+- BACK
+- LEFT_SIDE
+- UNKNOWN
+
+# Methodology
+Before providing a final orientation, you MUST perform a structured "Anatomical Audit" by answering the following questions:
+
+1. **Head & Face:** Are both eyes visible? Is the bridge of the nose centered or on the silhouette's edge? Is the back of the head (hair/occipital) the primary texture?
+2. **Torso & Shoulders:** Are the shoulders "stacked" (one obscuring the other) or "parallel" to the lens? Are chest features (sternum, buttons, tie) or back features (scapula, spine line) visible?
+3. **Arms:** Are both arms equidistant to the center point of the camera? Is the subject's left arm or right arm closer to the camera?
+4. **Hips:** Are the hips "stacked" or "parallel" to the lens? Is the right hip or left hip closer to the camera?
+
+**Clock Mapping:** Place the person at the center of a clock face. The camera is fixed at the 6:00 position. Determine where the person is facing on this clock:
+- 6:00 = **FRONT** (facing camera; both eyes visible, chest features visible)
+- 12:00 = **BACK** (facing away; back of head visible, scapulae/spine line visible)
+- 3:00 = **RIGHT_SIDE** (camera sees the person's right profile)
+- 9:00 = **LEFT_SIDE** (camera sees the person's left profile)
+
+For diagonal angles (e.g., 4:30), choose the nearest cardinal direction. Use your anatomical audit to triangulate: face, shoulders, and hips should all agree on a clock position — note any that disagree and weight the majority.
+
+# Reasoning Process
+Work through the four anatomical audit questions silently. You do not output this reasoning — it exists only to inform your final answer. Resolve any conflicts between cues (e.g., face says 6:00 but shoulders say 4:30) by choosing the nearest cardinal direction.
+
+# Output Format
+Respond with ONLY a valid JSON object mapping cell number (as string) to final orientation.
+Example: {"1": "FRONT", "2": "RIGHT_SIDE", "3": "BACK", "4": "LEFT_SIDE"}
+No other text, no markdown, no explanation.
+"""
+
+
+SYSTEM_PROMPT_1 = """You are a body orientation classifier analyzing a numbered image grid.
 
 For each numbered cell in the grid, classify the human subject's orientation into EXACTLY ONE of these categories:
 - FRONT: Subject facing camera
@@ -60,7 +97,7 @@ async def classify_sheets(
     mapping of frame_index → orientation.
 
     Args:
-        sheets: Contact sheets from compose_contact_sheets().
+        sheets: list of ContactSheets
 
     Returns:
         Dict mapping each frame's VideoFrame.index to its orientation string.
@@ -106,7 +143,7 @@ async def _call_openai(sheet: ContactSheet) -> str:
         raise ValueError("OPENAI_API_KEY not set")
     
     completion = await async_client.chat.completions.create(
-        model="gpt-5.4",
+        model=PRIMARY_MODEL,
         messages=[
             {
                 "role": "system",
@@ -137,6 +174,9 @@ async def _call_openai(sheet: ContactSheet) -> str:
         seed=VLM_SEED,
         temperature=VLM_TEMPERATURE,
     )
+
+    print("### COMPLETION ###")
+    print(completion)
 
     return completion.choices[0].message.content
 
@@ -243,8 +283,7 @@ def _parse_and_validate(raw: str, expected_cells: int) -> dict[str, str]:
     for i in range(1, expected_cells + 1):
         key = str(i)
         raw_val = data.get(key, "UNKNOWN").strip().upper()
-        # Normalize common variants
-        raw_val = raw_val.replace(" ", "_")
+
         if raw_val not in VALID_ORIENTATIONS:
             # Try partial match
             matched = next((v for v in VALID_ORIENTATIONS if v in raw_val), "UNKNOWN")

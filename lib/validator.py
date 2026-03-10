@@ -45,7 +45,7 @@ def validate_result(
         )
 
     # Check 2: Enough unique orientations were observed
-    unique = set(result.smoothed_sequence) - {"UNKNOWN"}
+    unique = set(result.sequence) - {"UNKNOWN"}
     if len(unique) < MIN_UNIQUE_ORIENTATIONS:
         issues.append(
             f"Only {len(unique)} unique orientations detected (need ≥{MIN_UNIQUE_ORIENTATIONS}). "
@@ -86,7 +86,7 @@ def print_validation_report(result: RotationResult, issues: list[str]) -> None:
     print(f"  Direction         : {result.direction}")
     print(f"  Cumulative angle  : {result.cumulative_angle}°")
     print(f"  Confidence        : {result.confidence:.2f}")
-    print(f"  Frames analyzed   : {len(result.smoothed_sequence)}")
+    print(f"  Frames analyzed   : {len(result.sequence)}")
     if issues:
         print(f"  Warnings ({len(issues)}):")
         for w in issues:

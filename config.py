@@ -22,7 +22,7 @@ LABEL_FONT_SIZE = 14    # Size of cell number labels
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
-PRIMARY_MODEL = "gpt-4o-mini"
+PRIMARY_MODEL = "gpt-5.4"
 FALLBACK_MODEL = "gemini-2.0-flash"
 
 VLM_TEMPERATURE = 0
@@ -34,9 +34,6 @@ VLM_MAX_CONCURRENT = 5  # async semaphore limit
 # --- Classification ---
 VALID_ORIENTATIONS = {"FRONT", "RIGHT_SIDE", "BACK", "LEFT_SIDE", "UNKNOWN"}
 MIN_CONFIDENCE_THRESHOLD = 0.65  # Filter frames below this
-
-# --- Smoothing ---
-SMOOTHING_WINDOW = 3    # Majority-vote window size for orientation sequence
 
 # --- Validation ---
 MIN_DIRECTION_CONSISTENCY = 0.85  # Fraction of transitions that must match detected direction
