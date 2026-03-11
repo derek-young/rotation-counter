@@ -46,6 +46,14 @@ def save_log(
         "frame_orientations": {str(k): v for k, v in sorted(orientations.items())},
     }
 
+    print("=" * 50)
+    print(f"  Rotation count         : {final_count}")
+    print(f"  Classification accuracy: {accuracy}")
+    print(f"  Frames analyzed        : {len(orientations)}")
+    print(f"  Model                  : {model}")
+    print(f"  Token usage            : {total_tokens}")
+    print("=" * 50)
+
     with open(log_path, "w") as f:
         json.dump(log_data, f, indent=2)
 

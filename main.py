@@ -27,7 +27,7 @@ from lib.frame_extractor import extract_frames
 from lib.contact_sheet import compose_contact_sheets, dump_labeled_sheets
 from lib.vlm_classifier import classify_sheets
 from lib.rotation_algorithm import count_front_back_rotations
-from lib.validator import validate_result, print_validation_report
+from lib.validator import validate_result
 from lib.save_log import save_log
 
 
@@ -63,7 +63,6 @@ async def run_pipeline(video_path: str) -> int:
 
     # Step 6: Validate
     final_count, issues = validate_result(result)
-    print_validation_report(result, issues)
 
     t_total = time.perf_counter()
     print(f"[pipeline] total time: {t_total - t0:.1f}s")

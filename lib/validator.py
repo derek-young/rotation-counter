@@ -70,19 +70,3 @@ def validate_result(
         )
 
     return result.count, issues
-
-
-def print_validation_report(result: RotationResult, issues: list[str]) -> None:
-    """Print a human-readable validation summary (goes to stderr / logs)."""
-    print("=" * 50)
-    print(f"  Rotation count    : {result.count}")
-    print(f"  Cumulative angle  : {result.cumulative_angle}°")
-    print(f"  Confidence        : {result.confidence:.2f}")
-    print(f"  Frames analyzed   : {len(result.sequence)}")
-    if issues:
-        print(f"  Warnings ({len(issues)}):")
-        for w in issues:
-            print(f"    ⚠  {w}")
-    else:
-        print("  Validation        : PASSED (no issues)")
-    print("=" * 50)
