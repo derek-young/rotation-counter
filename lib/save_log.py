@@ -9,12 +9,13 @@ from lib.accuracy import (
     compute_moving_average_accuracy,
     load_reference_orientations,
 )
+from lib.rotation_algorithm import RotationResult
 
 
 def save_log(
     video_path: str,
     orientations: dict[int, str],
-    result,
+    result: RotationResult,
     final_count: int,
     elapsed: float,
     model: str,

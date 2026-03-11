@@ -27,7 +27,6 @@ FALLBACK_MODEL = "gemini-2.0-flash"
 
 VLM_TEMPERATURE = 0
 VLM_SEED = 42
-VLM_TIMEOUT = 30        # seconds
 VLM_MAX_RETRIES = 3
 VLM_MAX_CONCURRENT = 5  # async semaphore limit
 
