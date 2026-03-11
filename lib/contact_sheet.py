@@ -188,7 +188,6 @@ def dump_labeled_sheets(
 
         path = os.path.join(out_dir, f"sheet_{sheet.sheet_index:03d}.jpg")
         img.save(path, format="JPEG")
-        print(f"[contact_sheet] dumped labeled {path}")
 
 
 def _pil_to_base64(img: Image.Image, quality: int = 85) -> str:

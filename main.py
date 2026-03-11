@@ -48,15 +48,20 @@ async def run_pipeline(video_path: str) -> int:
     # Step 2: Contact sheet composition
     sheets = compose_contact_sheets(frames)
 
+    t_extract = time.perf_counter()
+    print(f"[pipeline] frame extraction done in {t_extract - t0:.1f}s")
+
     # Step 3: Async VLM classification
     frame_orientations, model_used, total_tokens = await classify_sheets(sheets)
+
+    t_classify = time.perf_counter()
+    print(f"[pipeline] classification done in {t_classify - t_extract:.1f}s")
 
     # Optional: dump sheets with orientation labels to disk for inspection
     if DUMP_SHEETS:
         dump_labeled_sheets(sheets, frame_orientations, DUMP_SHEETS_DIR)
-
-    t_classify = time.perf_counter()
-    print(f"[pipeline] classification done in {t_classify - t0:.1f}s")
+        t_dump = time.perf_counter()
+        print(f"[pipeline] sheet dump done in {t_dump - t_classify:.1f}s")
 
     # Step 4 + 5: Smooth + count
     result = count_front_back_rotations(frame_orientations)
