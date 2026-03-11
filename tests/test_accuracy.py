@@ -5,11 +5,8 @@ Run with: python3 -m pytest tests/ -v
 
 import json
 import os
-import sys
 import tempfile
 from pathlib import Path
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib.accuracy import (
     compute_classification_accuracy,
@@ -18,7 +15,8 @@ from lib.accuracy import (
 )
 
 _PERFECT_RUN = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    os.path.dirname(__file__),
+    "..",
     "logs",
     "perfect_run_4x2_3fps.json",
 )

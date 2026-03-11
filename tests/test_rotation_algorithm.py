@@ -6,16 +6,15 @@ Run with: python3 -m pytest tests/ -v
 import glob
 import json
 import os
+
 import pytest
-import sys
 
 from lib.rotation_algorithm import (
-    count_front_back_rotations,
     _fill_unknown,
+    count_front_back_rotations,
 )
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_LOGS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+_LOGS_DIR = os.path.join(os.path.dirname(__file__), "..", "logs")
 _LOG_FILES = sorted(glob.glob(os.path.join(_LOGS_DIR, "*.json")))[-10:]
 
 def make_seq(labels: list[str]) -> dict[int, str]:

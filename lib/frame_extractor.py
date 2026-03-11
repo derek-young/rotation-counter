@@ -5,13 +5,14 @@ of non-output frames at the codec level.
 """
 
 from __future__ import annotations
+
 import json
 import subprocess
 from dataclasses import dataclass
 
 from PIL import Image
 
-from config import TARGET_FPS, FRAME_WIDTH
+from config import FRAME_WIDTH, TARGET_FPS
 
 
 @dataclass

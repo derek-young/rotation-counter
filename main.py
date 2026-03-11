@@ -17,17 +17,18 @@ The pipeline:
 """
 
 from __future__ import annotations
+
 import asyncio
 import sys
 import time
 from pathlib import Path
 
-from config import SAVE_LOGS, DUMP_SHEETS, DUMP_SHEETS_DIR
-from lib.frame_extractor import extract_frames
+from config import DUMP_SHEETS, DUMP_SHEETS_DIR, SAVE_LOGS
 from lib.contact_sheet import compose_contact_sheets, dump_labeled_sheets
-from lib.vlm_classifier import classify_sheets
+from lib.frame_extractor import extract_frames
 from lib.rotation_algorithm import count_front_back_rotations
 from lib.save_log import save_log
+from lib.vlm_classifier import classify_sheets
 
 
 async def run_pipeline(video_path: str) -> int:

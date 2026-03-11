@@ -7,21 +7,23 @@ All API calls are async with a semaphore-controlled concurrency limit.
 """
 
 from __future__ import annotations
+
 import asyncio
 import json
 import re
 import time
-from openai import AsyncOpenAI, APIStatusError
 from typing import TypedDict
+
+from openai import APIStatusError, AsyncOpenAI
 
 from config import (
     OPENAI_API_KEY,
     PRIMARY_MODEL,
     VALID_ORIENTATIONS,
-    VLM_TEMPERATURE,
-    VLM_SEED,
-    VLM_MAX_RETRIES,
     VLM_MAX_CONCURRENT,
+    VLM_MAX_RETRIES,
+    VLM_SEED,
+    VLM_TEMPERATURE,
 )
 from lib.contact_sheet import ContactSheet
 

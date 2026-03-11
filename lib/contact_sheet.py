@@ -6,15 +6,15 @@ and classify all cells in a single API call. This reduces cost and latency signi
 """
 
 from __future__ import annotations
+
 import base64
 import io
 from dataclasses import dataclass
 
 from PIL import Image, ImageDraw, ImageFont
 
-from config import GRID_COLS, GRID_ROWS, CELL_BORDER, LABEL_FONT_SIZE
+from config import CELL_BORDER, GRID_COLS, GRID_ROWS, LABEL_FONT_SIZE
 from lib.frame_extractor import VideoFrame
-
 
 CELLS_PER_SHEET = GRID_COLS * GRID_ROWS
 

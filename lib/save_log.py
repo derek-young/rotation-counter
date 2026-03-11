@@ -10,6 +10,7 @@ from lib.accuracy import (
     load_reference_orientations,
 )
 
+
 def save_log(
     video_path: str,
     orientations: dict[int, str],
@@ -36,7 +37,6 @@ def save_log(
         "timestamp": ts,
         "video": video_path,
         "final_count": final_count,
-        "cumulative_angle": result.cumulative_angle,
         "confidence": result.confidence,
         "elapsed_seconds": round(elapsed, 2),
         "classification_accuracy": accuracy,
