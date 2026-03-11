@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from openai import AsyncOpenAI, APIStatusError
 from typing import TypedDict
 
@@ -154,8 +155,8 @@ async def _call_openai(sheet: ContactSheet) -> ModelCallResult:
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/png;base64,{sheet.image_b64}",
-                            "detail": "high",
+                            "url": f"data:image/jpeg;base64,{sheet.image_b64}",
+                            "detail": "low",
                         }
                     },
                     {
@@ -173,6 +174,9 @@ async def _call_openai(sheet: ContactSheet) -> ModelCallResult:
         seed=VLM_SEED,
         temperature=VLM_TEMPERATURE,
     )
+
+    server_elapsed = time.time() - completion.created
+    print(f"[vlm] sheet {sheet.sheet_index} server elapsed: {server_elapsed:.2f}s")
 
     return {
         "content": completion.choices[0].message.content,

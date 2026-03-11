@@ -190,7 +190,7 @@ def dump_labeled_sheets(
         img.save(path, format="JPEG")
 
 
-def _pil_to_base64(img: Image.Image, quality: int = 85) -> str:
+def _pil_to_base64(img: Image.Image, quality: int = 70) -> str:
     """Convert PIL Image to base64-encoded JPEG string."""
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=quality)

@@ -29,85 +29,16 @@ ANGLE_TO_ORIENT: dict[int, str] = {v: k for k, v in ORIENT_TO_ANGLE.items()}
 @dataclass
 class RotationResult:
     count: int
-    confidence: float       # 0.0–1.0
+    confidence: float
     sequence: list[str] = field(default_factory=list)
     cumulative_angle: float = 0.0
-    warnings: list[str] = field(default_factory=list)
-
-
-def count_angular_rotations(
-    frame_orientations: dict[int, str],
-) -> RotationResult:
-    """
-    Count complete 360° rotations from a frame_index → orientation mapping.
-
-    Args:
-        frame_orientations: {frame_idx: orientation_str} — may contain UNKNOWN.
-
-    Returns:
-        RotationResult with count and diagnostic info.
-    """
-    ordered = [
-        frame_orientations[k]
-        for k in sorted(frame_orientations.keys())
-    ]
-
-    warnings: list[str] = []
-
-    filled = _fill_unknown(ordered)
-
-    # Convert to angles
-    angles = [ORIENT_TO_ANGLE.get(o, -1) for o in filled]
-    angles = [a for a in angles if a >= 0]  # drop any remaining UNKNOWN
-
-    if len(angles) < 4:
-        warnings.append("Too few valid frames to detect rotations")
-        return RotationResult(
-            count=0,
-            confidence=0.0,
-            sequence=filled,
-            warnings=warnings
-        )
-
-    # Detect direction
-    direction, dir_confidence = _detect_direction(angles)
-    if dir_confidence < MIN_DIRECTION_CONSISTENCY:
-        warnings.append(
-            f"Low direction consistency ({dir_confidence:.2f}). "
-            "Rotation may not be smooth."
-        )
-
-    # Unwrap to monotonic cumulative angle
-    cumulative = _unwrap_angles(angles, direction)
-
-    # Count complete 360° cycles
-    total_angle = abs(cumulative[-1] - cumulative[0])
-    count = int(total_angle / 360)
-
-    # Confidence: based on direction consistency + unique orientations seen
-    unique = set(filled) - {"UNKNOWN"}
-    orient_coverage = len(unique) / 4.0  # how many of 4 cardinal directions we saw
-    confidence = (dir_confidence + orient_coverage) / 2.0
-
-    if len(unique) < 3:
-        warnings.append(
-            f"Only {len(unique)} unique orientations seen — possible undercounting"
-        )
-
-    return RotationResult(
-        count=count,
-        confidence=round(confidence, 3),
-        sequence=filled,
-        cumulative_angle=round(total_angle, 1),
-        warnings=warnings,
-    )
 
 
 def count_front_back_rotations(
     frame_orientations: dict[int, str],
 ) -> RotationResult:
     """
-    Count complete rotations using BACK → FRONT
+    Count complete rotations using FRONT → BACK → FRONT
 
     Args:
         frame_orientations: {frame_idx: orientation_str} — may contain UNKNOWN.
@@ -120,38 +51,33 @@ def count_front_back_rotations(
         for k in sorted(frame_orientations.keys())
     ]
 
-    warnings: list[str] = []
-
     filled = _fill_unknown(ordered)
 
     count = 0
-    state = "IDLE"  # IDLE | SAW_BACK
+    state = "IDLE"  # IDLE | SAW_FRONT | SAW_BACK
 
     for orientation in filled:
         if orientation == "UNKNOWN":
             continue
 
         if state == "IDLE":
+            if orientation == "FRONT":
+                state = "SAW_FRONT"
+        if state == "SAW_FRONT":
             if orientation == "BACK":
                 state = "SAW_BACK"
         elif state == "SAW_BACK":
             if orientation == "FRONT":
                 count += 1
-                state = "IDLE"
+                state = "SAW_FRONT"
 
     unique = set(filled) - {"UNKNOWN"}
     orient_coverage = len(unique) / 4.0
-
-    if len(unique) < 3:
-        warnings.append(
-            f"Only {len(unique)} unique orientations seen — possible undercounting"
-        )
 
     return RotationResult(
         count=count,
         confidence=round(orient_coverage, 3),
         sequence=filled,
-        warnings=warnings,
     )
 
 

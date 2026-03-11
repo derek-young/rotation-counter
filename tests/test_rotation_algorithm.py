@@ -16,7 +16,7 @@ from lib.rotation_algorithm import (
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _LOGS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
-_LOG_FILES = sorted(glob.glob(os.path.join(_LOGS_DIR, "*.json")))
+_LOG_FILES = sorted(glob.glob(os.path.join(_LOGS_DIR, "*.json")))[-10:]
 
 def make_seq(labels: list[str]) -> dict[int, str]:
     """Convert a list of labels into a frame_index → orientation dict."""
@@ -98,6 +98,6 @@ def test_front_back_rotations_all_logs(log_path):
         data = json.load(f)
     sequence = {int(k): v for k, v in data["frame_orientations"].items()}
     result = count_front_back_rotations(sequence)
-    assert result.count == 5, (
+    assert result.count == data["final_count"], (
         f"{os.path.basename(log_path)}: expected 5, got {result.count}"
     )

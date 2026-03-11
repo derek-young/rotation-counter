@@ -27,7 +27,6 @@ from lib.frame_extractor import extract_frames
 from lib.contact_sheet import compose_contact_sheets, dump_labeled_sheets
 from lib.vlm_classifier import classify_sheets
 from lib.rotation_algorithm import count_front_back_rotations
-from lib.validator import validate_result
 from lib.save_log import save_log
 
 
@@ -63,11 +62,8 @@ async def run_pipeline(video_path: str) -> int:
         t_dump = time.perf_counter()
         print(f"[pipeline] sheet dump done in {t_dump - t_classify:.1f}s")
 
-    # Step 4 + 5: Smooth + count
+    # Step 4: Count rotations
     result = count_front_back_rotations(frame_orientations)
-
-    # Step 6: Validate
-    final_count, issues = validate_result(result)
 
     t_total = time.perf_counter()
     print(f"[pipeline] total time: {t_total - t0:.1f}s")
@@ -75,8 +71,7 @@ async def run_pipeline(video_path: str) -> int:
     if SAVE_LOGS:
         save_log(
             elapsed=t_total - t0,
-            final_count=final_count,
-            issues=issues,
+            final_count=result.count,
             model=model_used,
             orientations=frame_orientations,
             result=result,

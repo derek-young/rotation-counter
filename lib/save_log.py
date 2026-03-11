@@ -15,7 +15,6 @@ def save_log(
     orientations: dict[int, str],
     result,
     final_count: int,
-    issues: list[str],
     elapsed: float,
     model: str,
     total_tokens: int,
@@ -40,21 +39,20 @@ def save_log(
         "cumulative_angle": result.cumulative_angle,
         "confidence": result.confidence,
         "elapsed_seconds": round(elapsed, 2),
-        "warnings": issues,
         "classification_accuracy": accuracy,
         "accuracy_moving_avg": accuracy_moving_avg,
         "frame_orientations": {str(k): v for k, v in sorted(orientations.items())},
     }
 
-    print("=" * 50)
-    print(f"  Rotation count         : {final_count}")
-    print(f"  Classification accuracy: {accuracy}")
-    print(f"  Frames analyzed        : {len(orientations)}")
-    print(f"  Model                  : {model}")
-    print(f"  Token usage            : {total_tokens}")
-    print("=" * 50)
-
     with open(log_path, "w") as f:
         json.dump(log_data, f, indent=2)
 
     print(f"[pipeline] log saved → {log_path}")
+
+    print("=" * 50)
+    print(f"  Rotation count          : {final_count}")
+    print(f"  Classification accuracy : {accuracy}")
+    print(f"  Frames analyzed         : {len(orientations)}")
+    print(f"  Model                   : {model}")
+    print(f"  Token usage             : {total_tokens}")
+    print("=" * 50)

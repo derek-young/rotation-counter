@@ -5,8 +5,7 @@
   "final_count": 5,
   "cumulative_angle": 1800.0,
   "confidence": 0.99,
-  "elapsed_seconds": 2.00,
-  "warnings": [],
+  "elapsed_seconds": 2.0,
   "frame_orientations": {
     "0": "FRONT",
     "1": "RIGHT_SIDE",

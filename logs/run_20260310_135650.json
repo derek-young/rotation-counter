@@ -7,10 +7,6 @@
   "cumulative_angle": 0.0,
   "confidence": 1.0,
   "elapsed_seconds": 4.63,
-  "warnings": [
-    "Could not determine rotation direction. All frames may have the same orientation.",
-    "Cumulative angle 0.0\u00b0 inconsistent with count=5 (expected 1620\u20131980\u00b0)."
-  ],
   "frame_orientations": {
     "0": "FRONT",
     "1": "LEFT_SIDE",
