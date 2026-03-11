@@ -7,7 +7,7 @@ the final integer count to the user.
 
 from __future__ import annotations
 
-from config import MIN_UNIQUE_ORIENTATIONS, MIN_DIRECTION_CONSISTENCY
+from config import MIN_UNIQUE_ORIENTATIONS
 from lib.rotation_algorithm import RotationResult
 
 
@@ -52,14 +52,7 @@ def validate_result(
             "VLM may be stuck classifying the same orientation."
         )
 
-    # Check 3: Direction was resolved
-    if result.direction == "UNKNOWN":
-        issues.append(
-            "Could not determine rotation direction. "
-            "All frames may have the same orientation."
-        )
-
-    # Check 4: Cumulative angle is consistent with count
+    # Check 3: Cumulative angle is consistent with count
     # Allow ±0.5 rotation tolerance
     expected_min_angle = (result.count - 0.5) * 360
     expected_max_angle = (result.count + 0.5) * 360
@@ -83,7 +76,6 @@ def print_validation_report(result: RotationResult, issues: list[str]) -> None:
     """Print a human-readable validation summary (goes to stderr / logs)."""
     print("=" * 50)
     print(f"  Rotation count    : {result.count}")
-    print(f"  Direction         : {result.direction}")
     print(f"  Cumulative angle  : {result.cumulative_angle}°")
     print(f"  Confidence        : {result.confidence:.2f}")
     print(f"  Frames analyzed   : {len(result.sequence)}")

@@ -3,7 +3,6 @@
   "timestamp": null,
   "video": "./rotationsTest.qt",
   "final_count": 5,
-  "direction": "CCW",
   "cumulative_angle": 1800.0,
   "confidence": 0.99,
   "elapsed_seconds": 2.00,

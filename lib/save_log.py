@@ -37,7 +37,6 @@ def save_log(
         "timestamp": ts,
         "video": video_path,
         "final_count": final_count,
-        "direction": result.direction,
         "cumulative_angle": result.cumulative_angle,
         "confidence": result.confidence,
         "elapsed_seconds": round(elapsed, 2),

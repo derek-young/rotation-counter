@@ -29,7 +29,6 @@ ANGLE_TO_ORIENT: dict[int, str] = {v: k for k, v in ORIENT_TO_ANGLE.items()}
 @dataclass
 class RotationResult:
     count: int
-    direction: str          # "CW", "CCW", or "UNKNOWN"
     confidence: float       # 0.0–1.0
     sequence: list[str] = field(default_factory=list)
     cumulative_angle: float = 0.0
@@ -64,8 +63,10 @@ def count_angular_rotations(
     if len(angles) < 4:
         warnings.append("Too few valid frames to detect rotations")
         return RotationResult(
-            count=0, direction="UNKNOWN", confidence=0.0,
-            sequence=filled, warnings=warnings
+            count=0,
+            confidence=0.0,
+            sequence=filled,
+            warnings=warnings
         )
 
     # Detect direction
@@ -95,7 +96,6 @@ def count_angular_rotations(
 
     return RotationResult(
         count=count,
-        direction=direction,
         confidence=round(confidence, 3),
         sequence=filled,
         cumulative_angle=round(total_angle, 1),
@@ -149,7 +149,6 @@ def count_front_back_rotations(
 
     return RotationResult(
         count=count,
-        direction="UNKNOWN",
         confidence=round(orient_coverage, 3),
         sequence=filled,
         warnings=warnings,
