@@ -41,7 +41,7 @@ To mitigate the latency of round-trip network requests, the frames are resized t
 
 The VLM receives a grid of numbered frames and classifies each frame's orientation using a strictly constrained system prompt:
 
-- Enumerated Output: Only 4 valid labels (FRONT, RIGHT_SIDE, BACK, LEFT_SIDE, UNKNOWN).
+- Enumerated Output: Only 5 valid labels (FRONT, RIGHT_SIDE, BACK, LEFT_SIDE, UNKNOWN).
 - Angular Quantization: Explicit rounding rule to "choose the nearest cardinal direction."
 - Structured Output: json_object response format prevents prose hallucination.
 
@@ -59,7 +59,7 @@ In testing, the F -> B -> F heuristic remained accurate across all iterations. F
 
 The first approach attempted to calculate cumulative angular displacement. However, while the VLM excelled at Front/Back detection, it struggled to reliably distinguish Left vs. Right profiles. This caused the cumulative angle approach to fail due to "direction-flipping" hallucinations.
 
-By pivoting to the more robust F -> B -> F state-transition approach, inference costs were further reduced. By lowering the image detail parameter to "low," inference latency was halved without compromising the detection of these primary cardinal orientations.
+By pivoting to the more robust F -> B -> F state-transition approach, inference costs were further reduced because the image detail parameter could be dropped to "low." This reduced the inference latency by half without compromising the detection of these primary cardinal orientations.
 
 ---
 ## Key Performance Metrics
@@ -79,6 +79,13 @@ By pivoting to the more robust F -> B -> F state-transition approach, inference 
 ## Try It Yourself
 
 ```bash
+# Clone the repo
+git clone https://github.com/derek-young/rotation-counter.git
+
+# Spin up virtual env
+python3 -m venv .venv
+source .venv/bin/activate
+
 # Install dependencies
 pip install -r requirements.txt
 
@@ -87,11 +94,11 @@ cp .env.example .env
 # Edit .env with your OPENAI_API_KEY
 
 # Run
-python main.py rotationsTest.mp4
+python3 main.py rotationsTest.qt
 
 # Run 5 consecutive times (consistency test)
 chmod +x scripts/run_5x.sh
-./scripts/run_5x.sh rotationsTest.mp4
+./scripts/run_5x.sh rotationsTest.qt
 
 # Unit tests
 python -m pytest tests/ -v

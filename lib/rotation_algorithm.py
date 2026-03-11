@@ -13,8 +13,6 @@ This stage is fully deterministic — all LLM non-determinism is absorbed here.
 from __future__ import annotations
 from dataclasses import dataclass, field
 
-from config import MIN_DIRECTION_CONSISTENCY
-
 
 ORIENT_TO_ANGLE: dict[str, int] = {
     "FRONT": 0,

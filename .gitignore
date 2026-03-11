@@ -3,4 +3,5 @@ __pycache__
 .claude
 .pytest_cache
 .venv
+.ruff_cache
 debug_sheets/*
