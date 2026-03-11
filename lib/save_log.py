@@ -3,7 +3,12 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from config import LOG_DIR
+from config import ACCURACY_MOVING_AVG_WINDOW, LOG_DIR, PERFECT_RUN_PATH
+from lib.accuracy import (
+    compute_classification_accuracy,
+    compute_moving_average_accuracy,
+    load_reference_orientations,
+)
 
 def save_log(
     video_path: str,
@@ -20,6 +25,12 @@ def save_log(
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = Path(LOG_DIR) / f"run_{ts}.json"
 
+    reference = load_reference_orientations(PERFECT_RUN_PATH)
+    accuracy = compute_classification_accuracy(orientations, reference)
+    accuracy_moving_avg = compute_moving_average_accuracy(
+        LOG_DIR, accuracy, window=ACCURACY_MOVING_AVG_WINDOW
+    )
+
     log_data = {
         "model": model,
         "total_tokens": total_tokens,
@@ -31,8 +42,9 @@ def save_log(
         "confidence": result.confidence,
         "elapsed_seconds": round(elapsed, 2),
         "warnings": issues,
+        "classification_accuracy": accuracy,
+        "accuracy_moving_avg": accuracy_moving_avg,
         "frame_orientations": {str(k): v for k, v in sorted(orientations.items())},
-        "sequence": result.sequence,
     }
 
     with open(log_path, "w") as f:

@@ -20,7 +20,6 @@ LABEL_FONT_SIZE = 14    # Size of cell number labels
 
 # --- VLM API ---
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 PRIMARY_MODEL = "gpt-5.4"
 FALLBACK_MODEL = "gemini-2.0-flash"
@@ -33,7 +32,6 @@ VLM_MAX_CONCURRENT = 5  # async semaphore limit
 
 # --- Classification ---
 VALID_ORIENTATIONS = {"FRONT", "RIGHT_SIDE", "BACK", "LEFT_SIDE", "UNKNOWN"}
-MIN_CONFIDENCE_THRESHOLD = 0.65  # Filter frames below this
 
 # --- Validation ---
 MIN_DIRECTION_CONSISTENCY = 0.85  # Fraction of transitions that must match detected direction
@@ -42,6 +40,8 @@ MIN_UNIQUE_ORIENTATIONS = 3       # Minimum unique cardinal directions for valid
 # --- Logging ---
 LOG_DIR = "logs"
 SAVE_LOGS = True
+PERFECT_RUN_PATH = "logs/perfect_run_4x2_3fps.json"
+ACCURACY_MOVING_AVG_WINDOW = 10
 
 # --- Debug ---
 DUMP_SHEETS = True         # Save contact sheet images to DUMP_SHEETS_DIR for inspection

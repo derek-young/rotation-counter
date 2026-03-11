@@ -176,7 +176,6 @@ All tunable parameters are in `config.py`:
 | `VLM_TEMPERATURE` | 0 | Determinism setting |
 | `VLM_MAX_CONCURRENT` | 5 | Async concurrency limit |
 | `SMOOTHING_WINDOW` | 3 | Majority-vote window size |
-| `MIN_CONFIDENCE_THRESHOLD` | 0.65 | Filter low-confidence frames |
 
 ---
 

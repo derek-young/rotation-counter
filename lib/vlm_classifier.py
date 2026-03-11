@@ -10,21 +10,15 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-import time
 from openai import AsyncOpenAI, APIStatusError
-from typing import Any, TypedDict
-
-import httpx
+from typing import TypedDict
 
 from config import (
-    GOOGLE_API_KEY,
     OPENAI_API_KEY,
     PRIMARY_MODEL,
-    FALLBACK_MODEL,
     VALID_ORIENTATIONS,
     VLM_TEMPERATURE,
     VLM_SEED,
-    VLM_TIMEOUT,
     VLM_MAX_RETRIES,
     VLM_MAX_CONCURRENT,
 )
@@ -74,26 +68,6 @@ Respond with ONLY a valid JSON object mapping cell number (as string) to final o
 Example: {"1": "FRONT", "2": "RIGHT_SIDE", "3": "BACK", "4": "LEFT_SIDE"}
 No other text, no markdown, no explanation.
 """
-
-
-SYSTEM_PROMPT_1 = """You are a body orientation classifier analyzing a numbered image grid.
-
-For each numbered cell in the grid, classify the human subject's orientation into EXACTLY ONE of these categories:
-- FRONT: Subject facing camera
-- RIGHT_SIDE: Subject's right side closest to camera
-- BACK: Subject facing away from camera, back of head and shoulders visible
-- LEFT_SIDE: Subject's left side closest to camera
-- UNKNOWN: No human visible, cell is blank, or orientation cannot be determined
-
-Classification rules:
-1. Combine shoulder, hip, arm and head/face planes to get the strongest cue
-2. For diagonal orientations (45° between two cardinals), choose the nearest cardinal direction
-3. If only partial body is visible, classify based on the visible portion
-4. Symmetrical clothing does not affect classification; focus on body geometry
-
-Respond with ONLY a valid JSON object mapping cell number (as string) to orientation.
-Example: {"1": "FRONT", "2": "RIGHT_SIDE", "3": "BACK", "4": "LEFT_SIDE"}
-No other text, no markdown, no explanation."""
 
 
 async def classify_sheets(
@@ -149,8 +123,7 @@ async def _classify_sheet_with_retry(sheet: ContactSheet) -> tuple[dict[str, str
             # Config/programming errors (e.g. missing API key) won't resolve on retry
             raise
         except APIStatusError as e:
-            # Retry on 429 (rate limit) and 5xx (transient server errors);
-            # re-raise on other 4xx (bad request, auth, not found, etc.)
+            # Re-raise on non-retriable 4xx (bad request, auth, not found, etc.)
             if 400 <= e.status_code < 500 and e.status_code != 429:
                 raise
             wait = 2 ** attempt
@@ -160,6 +133,9 @@ async def _classify_sheet_with_retry(sheet: ContactSheet) -> tuple[dict[str, str
             wait = 2 ** attempt
             print(f"[vlm] sheet {sheet.sheet_index} attempt {attempt + 1} failed: {e}. Retrying in {wait}s...")
             await asyncio.sleep(wait)
+
+    raise RuntimeError(f"sheet {sheet.sheet_index} failed after {VLM_MAX_RETRIES} attempts")
+
 
 async def _call_openai(sheet: ContactSheet) -> ModelCallResult:
     if not OPENAI_API_KEY:
@@ -198,43 +174,11 @@ async def _call_openai(sheet: ContactSheet) -> ModelCallResult:
         temperature=VLM_TEMPERATURE,
     )
 
-    return { 
+    return {
         "content": completion.choices[0].message.content,
         "model": completion.model,
         "tokens": completion.usage.total_tokens,
     }
-
-
-async def _call_gemini(sheet: ContactSheet) -> str:
-    """Call Google Gemini API with the contact sheet image."""
-    if not GOOGLE_API_KEY:
-        raise ValueError("GOOGLE_API_KEY not set")
-
-    import google.generativeai as genai
-
-    genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel(FALLBACK_MODEL)
-
-    import base64
-    from PIL import Image
-    import io
-
-    img_bytes = base64.b64decode(sheet.image_b64)
-    pil_img = Image.open(io.BytesIO(img_bytes))
-
-    prompt = (
-        f"{SYSTEM_PROMPT}\n\n"
-        f"Classify the human's body orientation in each of the "
-        f"{sheet.cell_count} numbered cells. "
-        f"Return JSON with keys '1' through '{sheet.cell_count}'."
-    )
-
-    response = await asyncio.to_thread(
-        model.generate_content,
-        [prompt, pil_img],
-        generation_config={"temperature": VLM_TEMPERATURE, "response_mime_type": "application/json"},
-    )
-    return response.text
 
 
 def _parse_and_validate(raw: str, expected_cells: int) -> dict[str, str]:
