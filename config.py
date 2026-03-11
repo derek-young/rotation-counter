@@ -20,10 +20,11 @@ CELL_BORDER = 2         # Pixels of border between cells
 LABEL_FONT_SIZE = 14    # Size of cell number labels
 
 # --- VLM API ---
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 PRIMARY_MODEL = "gpt-5.4"
-FALLBACK_MODEL = "gemini-2.0-flash"
+# PRIMARY_MODEL = "gemini-3-flash-preview"
 
 VLM_TEMPERATURE = 0
 VLM_SEED = 42

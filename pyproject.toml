@@ -9,4 +9,4 @@ line-length = 120
 select = ["E", "F", "I"]
 
 [tool.ruff.lint.per-file-ignores]
-"lib/vlm_classifier.py" = ["E501"]
+"lib/vlm_callers.py" = ["E501"]
