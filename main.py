@@ -79,7 +79,7 @@ async def run_pipeline(video_path: str) -> int:
             video_path=video_path,
         )
 
-    return final_count
+    return result.count
 
 
 def main() -> None:

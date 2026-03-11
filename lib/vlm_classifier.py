@@ -177,6 +177,7 @@ async def _call_openai(sheet: ContactSheet) -> ModelCallResult:
 
     server_elapsed = time.time() - completion.created
     print(f"[vlm] sheet {sheet.sheet_index} server elapsed: {server_elapsed:.2f}s")
+    print(f"[vlm] sheet {sheet.sheet_index} input tokens: {completion.usage.prompt_tokens}, output tokens: {completion.usage.completion_tokens}")
 
     return {
         "content": completion.choices[0].message.content,
