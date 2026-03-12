@@ -70,20 +70,14 @@ def count_front_back_rotations(
 def _fill_unknown(sequence: list[str]) -> list[str]:
     """Replace UNKNOWN entries by copying the nearest known neighbor."""
     result = list(sequence)
-    n = len(result)
 
     for i, val in enumerate(result):
-        if val == "UNKNOWN":
-            # Look left then right for a known value
-            left = next(
-                (result[j] for j in range(i - 1, -1, -1) if result[j] != "UNKNOWN"),
-                None
-            )
-            right = next(
-                (result[j] for j in range(i + 1, n) if result[j] != "UNKNOWN"),
-                None
-            )
-            result[i] = left or right or "UNKNOWN"
+        if val == "UNKNOWN" and i > 0 and result[i - 1] != "UNKNOWN":
+            result[i] = result[i - 1]
+
+    for i in range(len(result) - 2, -1, -1):
+        if result[i] == "UNKNOWN" and result[i + 1] != "UNKNOWN":
+            result[i] = result[i + 1]
 
     return result
 

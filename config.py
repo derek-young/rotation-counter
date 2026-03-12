@@ -34,10 +34,6 @@ VLM_MAX_CONCURRENT = 5  # async semaphore limit
 # --- Classification ---
 VALID_ORIENTATIONS = {"FRONT", "RIGHT_SIDE", "BACK", "LEFT_SIDE", "UNKNOWN"}
 
-# --- Validation ---
-MIN_DIRECTION_CONSISTENCY = 0.85  # Fraction of transitions that must match detected direction
-MIN_UNIQUE_ORIENTATIONS = 3       # Minimum unique cardinal directions for valid count
-
 # --- Logging ---
 LOG_DIR = "logs"
 SAVE_LOGS = True
@@ -45,5 +41,5 @@ PERFECT_RUN_PATH = "logs/perfect_run_4x2_3fps.json"
 ACCURACY_MOVING_AVG_WINDOW = 10
 
 # --- Debug ---
-DUMP_SHEETS = True         # Save contact sheet images to DUMP_SHEETS_DIR for inspection
+DUMP_SHEETS = False         # Save contact sheet images to DUMP_SHEETS_DIR for inspection
 DUMP_SHEETS_DIR = "debug_sheets"
