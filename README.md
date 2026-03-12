@@ -68,9 +68,9 @@ By pivoting to the more robust F -> B -> F state-transition approach, inference 
 
 | Metric | Average Value | Description |
 | :--- | :--- | :--- |
-| **Total Execution Time** | ~2.5 seconds | End-to-end processing (Extraction + Batching + Inference) |
+| **Total Execution Time** | ~3 seconds | End-to-end processing (Extraction + Batching + Inference) |
 | **Total Tokens** | ~8,400 tokens | Total tokens per analysis (input + output) |
-| **Classification Accuracy** | ~55% | Frame-level orientation classification accuracy |
+| **Classification Accuracy** | ~57% | Frame-level orientation classification accuracy |
 | **Count Accuracy** | 100% | Correct rotation count (5/5) across all 10 runs |
 | **Cost per Analysis** | ~$0.024 USD | ~$0.02 input + ~$0.004 output (at $2.50/1M input, $15.00/1M output) |
 
